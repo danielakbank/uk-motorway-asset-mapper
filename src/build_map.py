@@ -1,12 +1,17 @@
 """
 Build the final interactive map: M1/M6 junctions, their maintenance priority
 zones, and simulated assets colour-coded by whether they fall within a zone.
+
+Exposes build_full_map() so this logic can be reused both by the CLI
+(__main__ below) and by the Streamlit app (app.py), which needs the live
+folium.Map object rather than a saved file.
 """
 
 import logging
 from pathlib import Path
 
 import folium
+import geopandas as gpd
 import pandas as pd
 
 from build_zones import build_priority_zones, load_junctions
@@ -24,20 +29,22 @@ LEGEND_HTML = """
 <div style="
     position: fixed;
     bottom: 30px; left: 30px; z-index: 9999;
-    background-color: white; padding: 12px 16px;
-    border: 1px solid #999; border-radius: 6px;
+    background-color: #1e1e1e; color: #f0f0f0; padding: 12px 16px;
+    border: 1px solid #444; border-radius: 6px;
     font-size: 13px; line-height: 1.6;
+    color-scheme: dark;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.4);
 ">
-    <b>Legend</b><br>
-    <span style="color:#1f77b4;">&#9679;</span> Motorway junction<br>
-    <span style="color:#2ca02c;">&#9679;</span> Asset — priority zone<br>
-    <span style="color:#d62728;">&#9679;</span> Asset — outside zone<br>
-    <span style="color:#1f77b4; opacity:0.4;">&#9632;</span> 500m priority zone
+    <b style="color:#ffffff;">Legend</b><br>
+    <span style="color:#4da3ff;">&#9679;</span> Motorway junction<br>
+    <span style="color:#4caf50;">&#9679;</span> Asset — priority zone<br>
+    <span style="color:#f44336;">&#9679;</span> Asset — outside zone<br>
+    <span style="color:#4da3ff; opacity:0.6;">&#9632;</span> 500m priority zone
 </div>
 """
 
 
-def add_junction_markers(fmap: folium.Map, junctions) -> None:
+def add_junction_markers(fmap: folium.Map, junctions: gpd.GeoDataFrame) -> None:
     """Add a marker for each motorway junction."""
     for _, row in junctions.iterrows():
         popup_text = f"{row['motorway']} J{row['junction_id']} — {row['name']}"
@@ -49,7 +56,7 @@ def add_junction_markers(fmap: folium.Map, junctions) -> None:
         ).add_to(fmap)
 
 
-def add_priority_zones(fmap: folium.Map, zones) -> None:
+def add_priority_zones(fmap: folium.Map, zones: gpd.GeoDataFrame) -> None:
     """Add each priority zone as a translucent circle polygon."""
     for _, row in zones.iterrows():
         folium.GeoJson(
@@ -89,6 +96,30 @@ def add_asset_markers(fmap: folium.Map, assets: pd.DataFrame) -> None:
         ).add_to(fmap)
 
 
+def build_full_map(
+    junctions: gpd.GeoDataFrame,
+    zones: gpd.GeoDataFrame,
+    assets: pd.DataFrame,
+) -> folium.Map:
+    """
+    Build the complete Folium map: zones, junctions, assets, and legend.
+
+    This is the single source of truth for map construction, used by both
+    the command-line entry point below and the Streamlit app, so the two
+    never drift apart.
+    """
+    center_lat = junctions["latitude"].mean()
+    center_lon = junctions["longitude"].mean()
+    fmap = folium.Map(location=[center_lat, center_lon], zoom_start=9)
+
+    add_priority_zones(fmap, zones)
+    add_junction_markers(fmap, junctions)
+    add_asset_markers(fmap, assets)
+
+    fmap.get_root().html.add_child(folium.Element(LEGEND_HTML))
+    return fmap
+
+
 def main() -> None:
     junctions = load_junctions()
     logger.info("Loaded %d junctions", len(junctions))
@@ -99,15 +130,7 @@ def main() -> None:
     assets = pd.read_csv(ASSETS_WITH_PRIORITY_PATH)
     logger.info("Loaded %d assets", len(assets))
 
-    center_lat = junctions["latitude"].mean()
-    center_lon = junctions["longitude"].mean()
-    fmap = folium.Map(location=[center_lat, center_lon], zoom_start=9, tiles="OpenStreetMap")
-
-    add_priority_zones(fmap, zones)
-    add_junction_markers(fmap, junctions)
-    add_asset_markers(fmap, assets)
-
-    fmap.get_root().html.add_child(folium.Element(LEGEND_HTML))
+    fmap = build_full_map(junctions, zones, assets)
 
     OUTPUT_MAP_PATH.parent.mkdir(parents=True, exist_ok=True)
     fmap.save(OUTPUT_MAP_PATH)
