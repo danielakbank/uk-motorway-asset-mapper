@@ -39,6 +39,24 @@ st.set_page_config(
     layout="wide",
 )
 
+# Small CSS polish for elements the theme config doesn't reach
+st.markdown(
+    """
+    <style>
+    div[data-testid="stMetric"] {
+        background-color: #FFFFFF;
+        border: 1px solid #E0E2E7;
+        border-radius: 8px;
+        padding: 16px;
+    }
+    div[data-testid="stMetricValue"] {
+        color: #00539F;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
 
 @st.cache_data
 def get_junctions() -> pd.DataFrame:
@@ -72,7 +90,7 @@ def main() -> None:
     )
 
     with st.sidebar:
-        st.header("Settings")
+        st.header("⚙️ Settings")
         radius = st.slider(
             "Priority zone radius (metres)",
             min_value=100,
@@ -128,6 +146,8 @@ def main() -> None:
         n_priority,
         f"{100 * n_priority / n_total:.0f}% of assets" if n_total else None,
     )
+
+    st.divider()
 
     fmap = build_full_map(junctions, zones, result)
     st_folium(fmap, width=MAP_WIDTH_PX, height=MAP_HEIGHT_PX, returned_objects=[])

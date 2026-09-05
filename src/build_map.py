@@ -25,7 +25,12 @@ logger = logging.getLogger(__name__)
 ASSETS_WITH_PRIORITY_PATH = Path("data/assets_with_priority.csv")
 OUTPUT_MAP_PATH = Path("output/priority_map.html")
 
-LEGEND_HTML = """
+# Colour palette based on UK motorway/roadworks signage
+ZONE_COLOR = "#00539F"       # motorway blue
+PRIORITY_COLOR = "#2E8B57"   # muted green
+OUTSIDE_COLOR = "#C0392B"    # muted red
+
+LEGEND_HTML = f"""
 <div style="
     position: fixed;
     bottom: 30px; left: 30px; z-index: 9999;
@@ -36,10 +41,10 @@ LEGEND_HTML = """
     box-shadow: 0 2px 6px rgba(0,0,0,0.4);
 ">
     <b style="color:#ffffff;">Legend</b><br>
-    <span style="color:#4da3ff;">&#9679;</span> Motorway junction<br>
-    <span style="color:#4caf50;">&#9679;</span> Asset — priority zone<br>
-    <span style="color:#f44336;">&#9679;</span> Asset — outside zone<br>
-    <span style="color:#4da3ff; opacity:0.6;">&#9632;</span> 500m priority zone
+    <span style="color:{ZONE_COLOR};">&#9679;</span> Motorway junction<br>
+    <span style="color:{PRIORITY_COLOR};">&#9679;</span> Asset — priority zone<br>
+    <span style="color:{OUTSIDE_COLOR};">&#9679;</span> Asset — outside zone<br>
+    <span style="color:{ZONE_COLOR}; opacity:0.6;">&#9632;</span> 500m priority zone
 </div>
 """
 
@@ -62,8 +67,8 @@ def add_priority_zones(fmap: folium.Map, zones: gpd.GeoDataFrame) -> None:
         folium.GeoJson(
             row.geometry,
             style_function=lambda _: {
-                "fillColor": "#1f77b4",
-                "color": "#1f77b4",
+                "fillColor": ZONE_COLOR,
+                "color": ZONE_COLOR,
                 "weight": 1,
                 "fillOpacity": 0.15,
             },
@@ -75,7 +80,7 @@ def add_asset_markers(fmap: folium.Map, assets: pd.DataFrame) -> None:
     """Add a small coloured circle marker for each asset, green if in a priority zone."""
     for _, row in assets.iterrows():
         in_zone = row["in_priority_zone"]
-        color = "#2ca02c" if in_zone else "#d62728"
+        color = PRIORITY_COLOR if in_zone else OUTSIDE_COLOR
         status = "Priority zone" if in_zone else "Outside zone"
 
         popup_text = (
